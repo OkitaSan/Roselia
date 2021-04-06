@@ -1,7 +1,3 @@
-use core::fmt;
-
-use fmt::write;
-
 /// Tokens of MiniDecaf
 /// Int -> type int(only positive numbers for now)
 ///
@@ -24,10 +20,9 @@ pub mod parser;
 pub mod visit;
 #[cfg(test)]
 mod roselia_test {
-    use super::*;
-    use crate::lexer::*;
     use crate::lexer::MiniDecafTokens::*;
     use crate::lexer::ScanError::*;
+    use crate::lexer::*;
     #[test]
     fn test_if_lexer_works() {
         let k = "int main(){return 0;}".to_owned();
