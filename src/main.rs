@@ -1,4 +1,6 @@
-use roselia::*;
+use roselia::lexer::*;
+use roselia::parser::*;
+use roselia::visit::*;
 fn main() -> Result<(),Box<dyn std::error::Error>> {
     let left_bracket_forgetted = "int main(){return 0;}".to_owned();
     let mut lexer = Scanner::new(left_bracket_forgetted);
