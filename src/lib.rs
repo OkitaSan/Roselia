@@ -205,9 +205,10 @@ pub struct Expression{
 type ParseResult<T> = Result<T,ParserError>;
 #[derive(Debug)]
 pub enum ParserError{
-    UnexpectedExpressionError,
+    UnexpectedTokenError,
     SemicolonGoneError,
     UndefinedTypeError,
+    MissingIdentifierError,
 }
 impl fmt::Display for ParserError{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -218,8 +219,11 @@ impl fmt::Display for ParserError{
             &Self::SemicolonGoneError => {
                 write!(f,"Where is the end semicon?")
             },
-            &Self::UndefinedTypeError => {
-                write!(f,"What type is this?")
+            &Self::UnexpectedTokenError => {
+                write!(f,"Wrong token!")
+            },
+            &Self::MissingIdentifierError => {
+                write!(f,"Where is the identifier?")
             }
         }
     }
@@ -236,41 +240,45 @@ impl MiniDecafParser{
             tokens
         }
     }
-    pub fn parse_program(&mut self) -> Program{
-        let func = self.parse_function();
-        Program{func}
+    pub fn parse_program(&mut self) -> ParseResult<Program>{
+        let func = self.parse_function()?;
+        Ok(Program{func})
     }
-    fn parse_function(&mut self) -> Function{
-        let mut t = MiniDecafTokens::Int;
-        if self.tokens[self.cursor] == MiniDecafTokens::Int{
-            t = self.parse_type();
-        }
-        let mut name = "".to_owned();
+    fn parse_function(&mut self) -> ParseResult<Function>{
+        let t = self.parse_type()?;
+        let name;
         if let MiniDecafTokens::Identifier(id) = &self.tokens[self.cursor]{
             name = id.clone();
             self.cursor += 1;
+        }else{
+            return Err(ParserError::MissingIdentifierError);
         }
         if self.tokens[self.cursor] == MiniDecafTokens::LeftParenthesis{
             self.cursor += 1;
+        }else{
+            return Err(ParserError::UnexpectedTokenError)
         }
         if self.tokens[self.cursor] == MiniDecafTokens::RightParenthesis{
             self.cursor += 1;
+        }else{
+            return Err(ParserError::UnexpectedTokenError)
         }
         if self.tokens[self.cursor] == MiniDecafTokens::LeftBracket{
             self.cursor += 1;
+        }else{
+            return Err(ParserError::UnexpectedTokenError)
         }
-        let mut stmt = Statement{expr:Expression{content:2}};
-        if self.tokens[self.cursor] == MiniDecafTokens::Return{
-            stmt = self.parse_statement();
-        }
+        let stmt = self.parse_statement()?;
         if self.tokens[self.cursor] == MiniDecafTokens::RightBracket{
             self.cursor += 1;
+        }else{
+            return Err(ParserError::UnexpectedTokenError);
         }
-        return Function{
+        Ok(Function{
             ty:t,
             identifier:name,
             stmt
-        };
+        })    
     }
     fn parse_type(&mut self) -> ParseResult<MiniDecafTokens>{
         if self.tokens[self.cursor] == MiniDecafTokens::Int{
@@ -281,11 +289,8 @@ impl MiniDecafParser{
         }
     }
     fn parse_statement(&mut self) -> ParseResult<Statement>{
-        if self.tokens[self.cursor] == MiniDecafTokens::Return{
-            self.cursor += 1;
-        }else{
-            return Err(ParserError::UnexpectedExpressionError);
-        }
+        // 顶层已经帮我们检查了return了。
+        self.cursor += 1;
         let expr = self.parse_expression()?;
         if self.tokens[self.cursor] == MiniDecafTokens::Semicon{
             self.cursor += 1;
@@ -299,9 +304,23 @@ impl MiniDecafParser{
             self.cursor += 1;
             return Ok(Expression{content:val});
         }else{
-            Err(ParserError::UnexpectedExpressionError)
+            Err(ParserError::UnexpectedTokenError)
         }
     }
+}
+pub fn program_visitor(prog:&Program) -> i32{
+    function_visitor(&prog.func)
+}
+pub fn function_visitor(func:&Function) -> i32{
+    statement_visitor(&func.stmt)
+}
+pub fn statement_visitor(stmt:&Statement) -> i32{
+    expression_visitor(&stmt.expr)
+}
+#[inline]
+pub fn expression_visitor(expr:&Expression) -> i32{
+    let Expression { content } = *expr;
+    content
 }
 #[cfg(test)]
 mod roselia_test{
