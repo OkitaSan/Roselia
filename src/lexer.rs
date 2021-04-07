@@ -1,4 +1,5 @@
 use core::fmt;
+use std::num::ParseIntError;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MiniDecafTokens {
@@ -11,12 +12,24 @@ pub enum MiniDecafTokens {
     LeftParenthesis,
     RightParenthesis,
     Semicon,
+    /// !
+    LogicalNot,
+    /// ~
+    BitwiseNot,
+    /// -
+    Minus
+}
+impl From<ParseIntError> for ScanError{
+    fn from(_: ParseIntError) -> Self {
+        Self::NumberOverflowError
+    }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub enum ScanError {
     BracketNotMatchError { line: usize, column: usize },
     ParenthesisNotMatchError { line: usize, column: usize },
     UnrecognizableTokenError,
+    NumberOverflowError,
 }
 impl fmt::Display for ScanError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -28,6 +41,7 @@ impl fmt::Display for ScanError {
                 write!(f, "Expected parenthesis in line{},column {}", line, column)
             }
             &ScanError::UnrecognizableTokenError => write!(f, "Unrecognizeable token",),
+            &ScanError::NumberOverflowError => write!(f,"number overflow")
         }
     }
 }
@@ -119,7 +133,7 @@ impl Scanner {
                         column += 1;
                     }
                     let number =
-                        i32::from_str_radix(&number.into_iter().collect::<String>(), 10).unwrap();
+                        i32::from_str_radix(&number.into_iter().collect::<String>(), 10)?;
                     tokens.push(MiniDecafTokens::IntValue(number));
                 }
                 // Identifier and Return and Type Identifier
@@ -144,6 +158,21 @@ impl Scanner {
                     } else {
                         tokens.push(MiniDecafTokens::Identifier(identifier));
                     }
+                },
+                '-' => {
+                    tokens.push(MiniDecafTokens::Minus);
+                    self.cursor += 1;
+                    column += 1;
+                },
+                '!' => {
+                    tokens.push(MiniDecafTokens::LogicalNot);
+                    self.cursor += 1;
+                    column += 1;
+                },
+                '~' => {
+                    tokens.push(MiniDecafTokens::BitwiseNot);
+                    self.cursor += 1;
+                    column += 1;
                 }
                 _ => return Err(ScanError::UnrecognizableTokenError),
             }

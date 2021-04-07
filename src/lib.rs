@@ -17,7 +17,7 @@
 /// Semicon -> ;
 pub mod lexer;
 pub mod parser;
-pub mod visit;
+pub mod ir;
 #[cfg(test)]
 mod roselia_test {
     use crate::lexer::MiniDecafTokens::*;

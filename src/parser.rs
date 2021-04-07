@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashMap;
 
 use super::lexer::*;
 /// Parser for the MiniDecaf
@@ -7,7 +8,8 @@ use super::lexer::*;
 ///     function   := type Identifier Lparen Rparen Lbrace statement Rbrace
 ///     type       := Int
 ///     statement  := Return expression Semicolon
-///     expression := Integer
+///     expression := unary
+///     unary      := Integer | ('-'|'!'|'~') unary
 #[derive(Debug)]
 pub struct Program {
     pub func: Function,
@@ -24,7 +26,26 @@ pub struct Statement {
 }
 #[derive(Debug)]
 pub struct Expression {
-    pub content: i32,
+    pub unary:Unary
+}
+#[derive(Debug)]
+pub enum Unary{
+    Integer(i32),
+    SubUnary{
+        operator:MiniDecafTokens,
+        sub_unary:Box<Unary>
+    }
+}
+macro_rules! hashmap {
+    ($($x:expr=>$y:expr),*) => {
+        {
+        let mut res = ::std::collections::HashMap::new();
+        $(
+            res.insert($x,$y);
+        )*
+        res
+        }
+    };
 }
 type ParseResult<T> = Result<T, ParserError>;
 #[derive(Debug)]
@@ -33,6 +54,8 @@ pub enum ParserError {
     SemicolonGoneError,
     UndefinedTypeError,
     MissingIdentifierError,
+    ExpectUnaryExpressionError,
+    InvaildIdentifierError,
 }
 impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -49,6 +72,12 @@ impl fmt::Display for ParserError {
             &Self::MissingIdentifierError => {
                 write!(f, "Where is the identifier?")
             }
+            &Self::ExpectUnaryExpressionError =>{
+                write!(f,"lossing operand")
+            }
+            &Self::InvaildIdentifierError => {
+                write!(f,"Invaild identifier error")
+            }
         }
     }
 }
@@ -56,10 +85,12 @@ impl std::error::Error for ParserError {}
 pub struct MiniDecafParser {
     cursor: usize,
     tokens: Vec<MiniDecafTokens>,
+    vaild_identifier : HashMap<String,()>
 }
+
 impl MiniDecafParser {
     pub fn new(tokens: Vec<MiniDecafTokens>) -> MiniDecafParser {
-        MiniDecafParser { cursor: 0, tokens }
+        MiniDecafParser { cursor: 0, tokens,vaild_identifier:hashmap!("main".to_owned() => ()) }
     }
     pub fn parse_program(&mut self) -> ParseResult<Program> {
         let func = self.parse_function()?;
@@ -70,6 +101,9 @@ impl MiniDecafParser {
         let name;
         if let MiniDecafTokens::Identifier(id) = &self.tokens[self.cursor] {
             name = id.clone();
+            if !self.vaild_identifier.contains_key(id){
+                return Err(ParserError::InvaildIdentifierError);
+            }
             self.cursor += 1;
         } else {
             return Err(ParserError::MissingIdentifierError);
@@ -121,11 +155,30 @@ impl MiniDecafParser {
         return Ok(Statement { expr });
     }
     fn parse_expression(&mut self) -> ParseResult<Expression> {
-        if let MiniDecafTokens::IntValue(val) = self.tokens[self.cursor] {
+            let result = self.parse_unary()?;
+            return Ok(Expression{unary:result})
+    }
+    fn parse_unary(&mut self) -> ParseResult<Unary>{
+        if let MiniDecafTokens::IntValue(val) = self.tokens[self.cursor]{
             self.cursor += 1;
-            return Ok(Expression { content: val });
-        } else {
-            Err(ParserError::UnexpectedTokenError)
+            return Ok(Unary::Integer(val));
+        }else if let MiniDecafTokens::BitwiseNot = self.tokens[self.cursor] {
+            let operator = MiniDecafTokens::BitwiseNot;
+            self.cursor += 1;
+            let sub_unary = self.parse_unary()?;
+            return Ok(Unary::SubUnary{operator,sub_unary:Box::new(sub_unary)})
+        }else if let MiniDecafTokens::LogicalNot = self.tokens[self.cursor] {
+            let operator = MiniDecafTokens::LogicalNot;
+            self.cursor += 1;
+            let sub_unary = self.parse_unary()?;
+            return Ok(Unary::SubUnary{operator,sub_unary:Box::new(sub_unary)})
+        }else if let MiniDecafTokens::Minus = self.tokens[self.cursor] {
+            let operator = MiniDecafTokens::Minus;
+            self.cursor += 1;
+            let sub_unary = self.parse_unary()?;
+            return Ok(Unary::SubUnary{operator,sub_unary:Box::new(sub_unary)})
+        }else{
+            return Err(ParserError::UnexpectedTokenError);
         }
     }
 }
